@@ -5,3 +5,4 @@ airflow_settings.yaml
 __pycache__/
 astro
 ../soda-framework.txt
+aitflow-bq-dbt-soda\include\gcp\service_account.json
