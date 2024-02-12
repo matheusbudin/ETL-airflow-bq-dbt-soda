@@ -68,7 +68,7 @@ def retail_utf8():
         output_table=Table(
             name='raw_invoices_fixed_encoding',
             conn_id='gcp',
-            metadata=Metadata(schema='retail')
+            metadata=Metadata(schema='retail_fixed_encoding')
         ),
         use_native_support=False,
     )
