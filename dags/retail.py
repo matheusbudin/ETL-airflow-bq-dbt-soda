@@ -76,4 +76,16 @@ def retail():
     # Set task dependencies
     detect_and_convert_encoding >> upload_csv_to_gcs >> create_retail_dataset  >> gcs_to_raw
 
+    @task.external_python(python='/usr/local/airflow/soda_venv/bin/python')
+    def check_load(scan_name='check_load', checks_subpath='sources'):
+        from include.soda.check_function import check
+
+        return check(scan_name, checks_subpath)
+    
+    check_load()
+    # Set task dependencies
+    #detect_and_convert_encoding >> upload_csv_to_gcs >> create_retail_dataset  >> gcs_to_raw >> check_load
+
 retail()
+
+    
