@@ -16,7 +16,7 @@ import os
   catchup=False,
   tags=['retail'],
 )
-def retail():
+def retail_utf8():
     input_csv_path = '/usr/local/airflow/include/dataset/online_retail.csv'
     output_csv_path = '/usr/local/airflow/include/dataset/online_retail_utf8.csv'
 
@@ -30,7 +30,7 @@ def retail():
 
         encoding_detect = detect_encoding()
 
-        with open(input_csv_path, 'r', encoding_detect=encoding) as file:
+        with open(input_csv_path, 'r', encoding_detect=encoding_detect) as file:
             data = file.read()
 
         with open(output_csv_path, 'w', encoding='utf-8', newline='') as file:
@@ -74,8 +74,6 @@ def retail():
     )
 
     # Set task dependencies
-    upload_csv_to_gcs >> create_retail_dataset
-    upload_csv_to_gcs >> detect_and_convert_encoding
-    detect_and_convert_encoding >> gcs_to_raw
+    detect_and_convert_encoding >> upload_csv_to_gcs >> create_retail_dataset  >> gcs_to_raw
 
-retail()
+retail_utf8()
