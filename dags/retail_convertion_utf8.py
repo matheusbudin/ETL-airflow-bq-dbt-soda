@@ -41,7 +41,7 @@ def retail():
 
     create_retail_dataset = BigQueryCreateEmptyDatasetOperator(
         task_id='create_retail_dataset',
-        dataset_id='retail',
+        dataset_id='retail_fixed_encoding',
         gcp_conn_id='gcp',
     )
 
@@ -58,9 +58,9 @@ def retail():
             filetype=FileType.CSV,
         ),
         output_table=Table(
-            name='raw_invoices',
+            name='raw_invoices_fixed_encoding',
             conn_id='gcp',
-            metadata=Metadata(schema='retail')
+            metadata=Metadata(schema='retail_fixed_encoding')
         ),
         use_native_support=False,
     )
