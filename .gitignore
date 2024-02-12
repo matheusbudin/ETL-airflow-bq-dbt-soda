@@ -6,3 +6,4 @@ __pycache__/
 astro
 ../soda-framework.txt
 aitflow-bq-dbt-soda\include\gcp\service_account.json
+aitflow-bq-dbt-soda\include\soda\configuration.yml

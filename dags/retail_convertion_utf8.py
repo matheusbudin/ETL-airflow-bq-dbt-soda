@@ -16,7 +16,7 @@ import os
   catchup=False,
   tags=['retail'],
 )
-def retail_utf8():
+def retail():
     input_csv_path = '/usr/local/airflow/include/dataset/online_retail.csv'
     output_csv_path = '/usr/local/airflow/include/dataset/online_retail_utf8.csv'
 
@@ -49,7 +49,7 @@ def retail_utf8():
 
     create_retail_dataset = BigQueryCreateEmptyDatasetOperator(
         task_id='create_retail_dataset',
-        dataset_id='retail_fixed_encoding',
+        dataset_id='retail',
         gcp_conn_id='gcp',
     )
 
@@ -66,9 +66,9 @@ def retail_utf8():
             filetype=FileType.CSV,
         ),
         output_table=Table(
-            name='raw_invoices_fixed_encoding',
+            name='raw_invoices',
             conn_id='gcp',
-            metadata=Metadata(schema='retail_fixed_encoding')
+            metadata=Metadata(schema='retail')
         ),
         use_native_support=False,
     )
@@ -76,4 +76,4 @@ def retail_utf8():
     # Set task dependencies
     detect_and_convert_encoding >> upload_csv_to_gcs >> create_retail_dataset  >> gcs_to_raw
 
-retail_utf8()
+retail()
