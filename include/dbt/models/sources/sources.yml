@@ -1,0 +1,11 @@
+
+# sources.yml
+version: 2
+
+sources:
+  - name: retail
+    database: airflow-bq-dbt-soda-project
+
+    tables:
+      - name: raw_invoices
+			- name: country
