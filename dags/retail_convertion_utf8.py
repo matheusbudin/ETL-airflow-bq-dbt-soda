@@ -28,9 +28,9 @@ def retail_utf8():
     def convert_to_utf8():
         print(f"Converting {input_csv_path} to UTF-8")
 
-        encoding_detect = detect_encoding()
+        encoding = detect_encoding()
 
-        with open(input_csv_path, 'r', encoding_detect=encoding_detect) as file:
+        with open(input_csv_path, 'r', encoding=encoding) as file:
             data = file.read()
 
         with open(output_csv_path, 'w', encoding='utf-8', newline='') as file:
