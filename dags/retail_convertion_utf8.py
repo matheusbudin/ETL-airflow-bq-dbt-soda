@@ -7,6 +7,7 @@ from astro.files import File
 from astro.sql.table import Table, Metadata
 from astro.constants import FileType
 from airflow.operators.python import PythonOperator
+import chardet
 import os
 
 @dag(
@@ -19,10 +20,17 @@ def retail():
     input_csv_path = '/usr/local/airflow/include/dataset/online_retail.csv'
     output_csv_path = '/usr/local/airflow/include/dataset/online_retail_utf8.csv'
 
+    def detect_encoding():
+        with open(input_csv_path, 'rb') as file:
+            result = chardet.detect(file.read())
+        return result['encoding']
+
     def convert_to_utf8():
         print(f"Converting {input_csv_path} to UTF-8")
 
-        with open(input_csv_path, 'r', encoding='latin1') as file:
+        encoding_detect = detect_encoding()
+
+        with open(input_csv_path, 'r', encoding_detect=encoding) as file:
             data = file.read()
 
         with open(output_csv_path, 'w', encoding='utf-8', newline='') as file:
@@ -45,8 +53,8 @@ def retail():
         gcp_conn_id='gcp',
     )
 
-    convert_encoding = PythonOperator(
-        task_id='convert_encoding',
+    detect_and_convert_encoding = PythonOperator(
+        task_id='detect_and_convert_encoding',
         python_callable=convert_to_utf8
     )
 
@@ -60,14 +68,14 @@ def retail():
         output_table=Table(
             name='raw_invoices_fixed_encoding',
             conn_id='gcp',
-            metadata=Metadata(schema='retail_fixed_encoding')
+            metadata=Metadata(schema='retail')
         ),
         use_native_support=False,
     )
 
     # Set task dependencies
     upload_csv_to_gcs >> create_retail_dataset
-    upload_csv_to_gcs >> convert_encoding
-    convert_encoding >> gcs_to_raw
+    upload_csv_to_gcs >> detect_and_convert_encoding
+    detect_and_convert_encoding >> gcs_to_raw
 
 retail()
