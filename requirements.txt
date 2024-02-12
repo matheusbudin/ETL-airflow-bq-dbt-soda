@@ -1,3 +1,4 @@
-astronomer-cosmos
+#astronomer-cosmos
+astronomer-cosmos[dbt-bigquery]>=1.0.3
 protobuf==3.20.0
 chardet==4.0.0
