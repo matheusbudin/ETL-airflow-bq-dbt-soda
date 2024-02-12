@@ -10,6 +10,11 @@ from airflow.operators.python import PythonOperator
 import chardet
 import os
 
+from include.dbt.cosmos_config import DBT_PROJECT_CONFIG, DBT_CONFIG
+from cosmos.airflow.task_group import DbtTaskGroup
+from cosmos.constants import LoadMode
+from cosmos.config import ProjectConfig, RenderConfig
+
 @dag(
   start_date=datetime(2024, 1, 1),
   schedule=None,
@@ -85,7 +90,20 @@ def retail():
     check_load()
     # Set task dependencies
     #detect_and_convert_encoding >> upload_csv_to_gcs >> create_retail_dataset  >> gcs_to_raw >> check_load
+    transform = DbtTaskGroup(
+        group_id='transform',
+        project_config=DBT_PROJECT_CONFIG,
+        profile_config=DBT_CONFIG,
+        render_config=RenderConfig(
+            load_method=LoadMode.DBT_LS,
+            select=['path:models/transform']
+        )
+    )
+    @task.external_python(python='/usr/local/airflow/soda_venv/bin/python')
+    def check_transform(scan_name='check_transform', checks_subpath='transform'):
+        from include.soda.check_function import check
 
+        return check(scan_name, checks_subpath)
 retail()
 
     
