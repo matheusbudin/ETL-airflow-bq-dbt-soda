@@ -41,7 +41,7 @@ def retail():
     upload_csv_to_gcs = LocalFilesystemToGCSOperator(
         task_id='upload_csv_to_gcs',
         src=input_csv_path,
-        dst='raw/online_retail.csv',
+        dst='raw/online_retail_utf8.csv',
         bucket='matheusrbudin-airflow-retail-project',
         gcp_conn_id='gcp',
         mime_type='text/csv'
@@ -61,7 +61,7 @@ def retail():
     gcs_to_raw = aql.load_file(
         task_id='gcs_to_raw',
         input_file=File(
-            'gs://matheusrbudin-airflow-retail-project/raw/online_retail.csv',
+            'gs://matheusrbudin-airflow-retail-project/raw/online_retail_utf8.csv',
             conn_id='gcp',
             filetype=FileType.CSV,
         ),
