@@ -120,7 +120,7 @@ from datetime import datetime
 from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesystemToGCSOperator
 
 @dag(
-    start_date=datetime(2023, 1, 1),
+    start_date=datetime(4, 1, 1),
     schedule=None,
     catchup=False,
     tags=['retail'],
@@ -138,3 +138,169 @@ def retail():
 
 retail()
 ```
+
+- Test you dag by entering the container with the first command and testing with the second command as follows:
+
+```
+astro dev bash
+airflow tasks test retail upload_csv_to_gcs 2024-01-01
+```
+
+#Creating an empty Dataset on bigquery (which is equivalent to a Schema on a Database):
+
+```
+from airflow.providers.google.cloud.operators.bigquery import BigQueryCreateEmptyDatasetOperator
+
+create_retail_dataset = BigQueryCreateEmptyDatasetOperator(
+        task_id='create_retail_dataset',
+        dataset_id='retail',
+        gcp_conn_id='gcp',
+    )
+```
+# Create a task to load the data into bigquery inside the dataset, and call it raw_invoices table:
+
+```
+from astro import sql as aql
+from astro.files import File
+from astro.sql.table import Table, Metadata
+from astro.constants import FileType
+
+gcs_to_raw = aql.load_file(
+        task_id='gcs_to_raw',
+        input_file=File(
+            'gs://marclamberti_online_retail/raw/online_retail.csv',
+            conn_id='gcp',
+            filetype=FileType.CSV,
+        ),
+        output_table=Table(
+            name='raw_invoices',
+            conn_id='gcp',
+            metadata=Metadata(schema='retail')
+        ),
+        use_native_support=False,
+    )
+```
+
+## By now we already have our raw data succesfully loaded into big query as ```raw_invoice``` table
+
+## Installing SODA, a data quality tool:
+
+- Input ```soda-core-bigquery==3.0.45``` in the requeriments.txt
+
+- Create a folder called "soda" inside "include" path, and create  ```configuration.yml```:
+
+```
+-- include/soda/configuration.yml
+data_source retail:
+  type: bigquery
+  connection:
+    account_info_json_path: /usr/local/airflow/include/gcp/service_account.json
+    auth_scopes:
+    - https://www.googleapis.com/auth/bigquery
+    - https://www.googleapis.com/auth/cloud-platform
+    - https://www.googleapis.com/auth/drive
+    project_id: '<YOUR_GCP_PROJECT_ID>'
+    dataset: retail
+```
+- Assuming you already have an account on SODA, create a API key, so that airflow can connect: By clicking on Profile -> API Keys -> Create API -> Copy the code generated into ```configuration.yml```
+it should look like this:
+```
+data_source retail:
+  type: bigquery
+  connection:
+    account_info_json_path: /usr/local/airflow/include/gcp/service_account.json
+    auth_scopes:
+    - https://www.googleapis.com/auth/bigquery
+    - https://www.googleapis.com/auth/cloud-platform
+    - https://www.googleapis.com/auth/drive
+    project_id: '<YOUR_GCP_PROJECT_ID>'
+    dataset: retail
+soda_cloud:
+  host: cloud.us.soda.io
+  api_key_id: <YOUR_ID>
+  api_key_secret: <YOUR API SECRET>
+```
+- Test the connection by typing:
+
+```
+astro dev bash
+soda test-connection -d retail -c include/soda/configuration.yml
+```
+- Create ```raw_invoices.yml``` as a first data quality test as follows:
+```
+#include/soda/checks/sources/raw_invoices.yml
+
+checks for raw_invoices:
+  - schema:
+      fail:
+        when required column missing: [InvoiceNo, StockCode, Quantity, InvoiceDate, UnitPrice, CustomerID, Country]
+        when wrong column type:
+          InvoiceNo: string
+          StockCode: string
+          Quantity: integer
+          InvoiceDate: string
+          UnitPrice: float64
+          CustomerID: float64
+          Country: string
+```
+This quality checks the columns data type, and if the columns listed exist.
+
+- run the quality check test:
+```soda scan -d retail -c include/soda/configuration.yml include/soda/checks/sources/raw_invoices.yml```
+
+- Create your check function:
+For this we will be creating a external python that will be installed by adding in the docker file:
+```
+# install soda into a virtual environment
+RUN python -m venv soda_venv && source soda_venv/bin/activate && \
+    pip install --no-cache-dir soda-core-bigquery==3.0.45 &&\
+    pip install --no-cache-dir soda-core-scientific==3.0.45 && deactivate
+```
+**This will help the data checks test to run inside the dag without creating conflict with the internal airflow python that is executing the tasks.**
+
+- Create the function code (the path its in the first line commented):
+```
+# include/soda/check_function.py
+def check(scan_name, checks_subpath=None, data_source='retail', project_root='include'):
+    from soda.scan import Scan
+
+    print('Running Soda Scan ...')
+    config_file = f'{project_root}/soda/configuration.yml'
+    checks_path = f'{project_root}/soda/checks'
+
+    if checks_subpath:
+        checks_path += f'/{checks_subpath}'
+
+    scan = Scan()
+    scan.set_verbose()
+    scan.add_configuration_yaml_file(config_file)
+    scan.set_data_source_name(data_source)
+    scan.add_sodacl_yaml_files(checks_path)
+    scan.set_scan_definition_name(scan_name)
+
+    result = scan.execute()
+    print(scan.get_logs_text())
+
+    if result != 0:
+        raise ValueError('Soda Scan failed')
+
+    return result
+
+```
+- In the dag code add:
+```
+@task.external_python(python='/usr/local/airflow/soda_venv/bin/python')
+    def check_load(scan_name='check_load', checks_subpath='sources'):
+        from include.soda.check_function import check
+
+        return check(scan_name, checks_subpath)
+
+```
+**ExternalPython uses an existing python virtual environment with dependencies pre-installed. That makes it faster to run than the VirtualPython where dependencies are installed at each run**
+
+- Test your task:
+```
+astro dev bash
+airflow tasks test retail check_load 2024-01-01
+```
+With this we have completed the Soda setting up and configured to run the data quality checks.
